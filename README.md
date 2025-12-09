@@ -9,5 +9,6 @@ streamlit run main.py
 ```
 
 Navigate via the Streamlit sidebar to access calculators for wire sizing, resistance, AC effects,
-magnetic and thermal checks, enameling oven/autoclave references, ageing-method visualizations,
-microwire property calculators/plots, and embedded research PDFs.
+magnetic and thermal checks, enameling oven/autoclave references, ageing-method visualizations with
+digitized thermogravimetry/dielectric/DMA/capacitance curves, microwire property calculators/plots,
+and embedded research PDFs.

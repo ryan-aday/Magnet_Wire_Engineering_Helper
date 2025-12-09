@@ -1,9 +1,22 @@
 import math
 from typing import Optional
 
-import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+COLORWAY = [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
+]
 import sympy as sp
 import streamlit as st
 
@@ -31,41 +44,36 @@ def _optional(value: float) -> Optional[float]:
     return value if value != 0 else None
 
 
-def overlay_plot(title: str, x, y, x_label: str, y_label: str, degree: int, note: str, log_x: bool = False):
+def add_series_with_fit(fig, x, y, name: str, color: str, degree: int, row: int = 1, col: int = 1, log_x: bool = False):
     coeffs = np.polyfit(x, y, degree)
     poly = np.poly1d(coeffs)
-    x_dense = np.linspace(min(x), max(x), 400)
+    x_dense = np.logspace(np.log10(min(x)), np.log10(max(x)), 400) if log_x else np.linspace(min(x), max(x), 400)
 
-    fig = go.Figure()
     fig.add_trace(
         go.Scatter(
             x=x,
             y=y,
             mode="markers",
-            name="Digitized points",
-            hovertemplate=f"{x_label}: %{{x:.3g}}<br>{y_label}: %{{y:.3g}}<extra></extra>",
-        )
+            name=f"{name} points",
+            marker=dict(color=color, symbol="circle"),
+            hovertemplate="x: %{x:.3g}<br>y: %{y:.3g}<extra></extra>",
+        ),
+        row=row,
+        col=col,
     )
     fig.add_trace(
         go.Scatter(
             x=x_dense,
             y=poly(x_dense),
             mode="lines",
-            name=f"{degree}° poly fit",
-            hovertemplate=f"{x_label}: %{{x:.3g}}<br>{y_label}: %{{y:.3g}}<extra></extra>",
-        )
+            name=f"{name} fit (deg {degree})",
+            line=dict(color=color),
+            hovertemplate="x: %{x:.3g}<br>y: %{y:.3g}<extra></extra>",
+        ),
+        row=row,
+        col=col,
     )
-    fig.update_layout(
-        title=title,
-        xaxis_title=x_label,
-        yaxis_title=y_label,
-        hovermode="x unified",
-        legend=dict(orientation="h", y=-0.25),
-    )
-    if log_x:
-        fig.update_xaxes(type="log")
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption(note + f" Fit coefficients: {np.round(coeffs, 4)}")
+    return coeffs
 
 
 st.header("Magnetoelastic Anisotropy Energy")
@@ -120,60 +128,492 @@ st.divider()
 st.header("Overlayed Curves from the Microwire Paper")
 st.caption("Digitized points approximate the paper's plots; polynomial fits smooth the trend. Hover to read coordinates.")
 
-# Hysteresis loop (H in Oe, magnetization normalized)
-h_vals = np.array([-60, -40, -20, -10, -5, 0, 5, 10, 20, 40, 60])
-m_vals = np.array([-1.0, -0.9, -0.65, -0.35, -0.1, 0, 0.1, 0.4, 0.7, 0.92, 1.0])
-overlay_plot("Quasi-static hysteresis (Fig. 3 style)", h_vals, m_vals, "H [Oe]", "M/Ms", degree=5, note="S-shaped magnetization mirrors the soft microwire loops.")
+# Figure 4 – Magnetization vs axial magnetic field for multiple alloys
+st.subheader("Figure 4 – Magnetization vs axial magnetic field")
+fig4 = go.Figure()
 
-# Giant magnetoimpedance magnitude vs frequency
-freq = np.array([1e5, 2e5, 5e5, 1e6, 2e6, 5e6, 1e7])
-gmi = np.array([120, 135, 160, 185, 200, 175, 150])
-overlay_plot("GMI ratio vs frequency (Fig. 9 style)", freq, gmi, "Frequency [Hz]", "|Z|/R_dc [%]", degree=3, note="Peak near a few MHz aligns with typical Co-based microwire GMI curves.", log_x=True)
+fe70_h = np.array([
+    -89.16215218,
+    -75.85262251,
+    -62.14294509,
+    -48.0269638,
+    -31.10379217,
+    -23.05158828,
+    -19.85964048,
+    -17.87429205,
+    -14.32221128,
+    -10.77936469,
+    -7.63358779,
+    -4.08150702,
+    -0.12312238,
+    2.23467126,
+    6.19613396,
+    8.93868505,
+    11.74895346,
+    16.97857671,
+    26.24661413,
+    34.70819995,
+    41.15981285,
+    48.82110318,
+    56.88869737,
+    66.96934253,
+    78.66596897,
+])
+fe70_m = np.array([
+    -2.65648855,
+    -2.67938931,
+    -2.67938931,
+    -2.70229008,
+    -2.61068702,
+    -2.51908397,
+    -2.26717557,
+    -2.03816794,
+    -1.46564885,
+    -0.82442748,
+    -0.22900763,
+    0.34351145,
+    0.89312977,
+    1.35114504,
+    1.8778626,
+    2.47328244,
+    2.5648855,
+    2.65648855,
+    2.70229008,
+    2.7480916,
+    2.7480916,
+    2.7480916,
+    2.72519084,
+    2.72519084,
+    2.70229008,
+])
 
-# Time derivative of magnetization after a field step
-time = np.array([0, 2, 4, 6, 8, 10, 12])
-dmdt = np.array([0.9, 0.65, 0.45, 0.3, 0.2, 0.12, 0.08])
-overlay_plot("dM/dt relaxation (after field jump)", time, dmdt, "Time [ms]", "dM/dt (norm.)", degree=2, note="Shows viscous relaxation seen in stress-annealed microwires.")
+co60_h = np.array([
+    -78.48101266,
+    -66.4556962,
+    -56.32911392,
+    -44.30379747,
+    -30.37974684,
+    -17.72151899,
+    -13.92405063,
+    -8.86075949,
+    -6.32911392,
+    -3.79746835,
+    -2.53164557,
+    2.53164557,
+    3.79746835,
+    6.32911392,
+    8.86075949,
+    12.65822785,
+    22.15189873,
+    32.91139241,
+    43.67088608,
+    51.89873418,
+    59.49367089,
+    67.08860759,
+    74.6835443,
+    81.64556962,
+])
+co60_m = np.array([
+    -2.36470588,
+    -2.36470588,
+    -2.4,
+    -2.36470588,
+    -2.4,
+    -2.4,
+    -2.36470588,
+    -2.15294118,
+    -1.8,
+    -1.30588235,
+    -0.77647059,
+    -0.07058824,
+    0.67058824,
+    1.30588235,
+    1.72941176,
+    2.08235294,
+    2.18823529,
+    2.15294118,
+    2.15294118,
+    2.15294118,
+    2.15294118,
+    2.15294118,
+    2.15294118,
+    2.15294118,
+])
 
-# Coercivity vs annealing field
-anneal_field = np.array([0, 5, 10, 20, 40, 60, 80])
-coercivity = np.array([0.6, 0.55, 0.48, 0.38, 0.3, 0.28, 0.27])
-overlay_plot("Coercivity vs transverse annealing field", anneal_field, coercivity, "Annealing field [Oe]", "Hc [Oe]", degree=3, note="Captures stress relief and induced anisotropy reduction after field anneals.")
+co68_h = np.array([
+    -94.93670886,
+    -90.50632911,
+    -82.91139241,
+    -76.58227848,
+    -70.88607595,
+    -66.4556962,
+    -60.75949367,
+    -56.32911392,
+    -49.36708861,
+    -41.7721519,
+    -36.07594937,
+    -28.48101266,
+    -21.51898734,
+    -13.92405063,
+    -5.06329114,
+    4.43037975,
+    10.12658228,
+    20.25316456,
+    31.64556962,
+    40.50632911,
+    46.83544304,
+    55.06329114,
+    62.02531646,
+    67.08860759,
+    75.3164557,
+    80.37974684,
+    85.44303797,
+    90.50632911,
+    94.93670886,
+])
+co68_m = np.array([
+    -5.73130035,
+    -5.73482451,
+    -5.74086594,
+    -5.66635501,
+    -5.75043153,
+    -5.7539557,
+    -5.5198504,
+    -5.1256473,
+    -4.81300345,
+    -3.94404488,
+    -3.55084868,
+    -2.92052647,
+    -2.21015535,
+    -1.50028769,
+    -0.63233602,
+    0.2351122,
+    1.02603567,
+    1.89298044,
+    2.91800921,
+    3.54732451,
+    4.25819908,
+    4.96756329,
+    5.20066168,
+    5.35572497,
+    5.42872555,
+    5.42469793,
+    5.42067031,
+    5.41664269,
+    5.41311853,
+])
 
-st.divider()
+coeffs_fe70 = add_series_with_fit(fig4, fe70_h, fe70_m, "Fe70Si10B15C5", "#1f77b4", degree=5, row=1, col=1)
+coeffs_co60 = add_series_with_fit(fig4, co60_h, co60_m, "Co60Fe15Si15B10", "#2ca02c", degree=5, row=1, col=1)
+coeffs_co68 = add_series_with_fit(fig4, co68_h, co68_m, "Co68.5Si14.5B14.5Y2.5", "#d62728", degree=5, row=1, col=1)
 
-st.header("Illustrative Diagrams (referencing Figs. 1, 3, and 9)")
-fig, axes = plt.subplots(1, 3, figsize=(12, 3))
+fig4.update_layout(
+    title="Figure 4 – Magnetization vs axial field",
+    xaxis_title="Axial magnetic field [Oe]",
+    yaxis_title="Magnetization [emu × 10⁴]",
+    hovermode="x unified",
+    legend=dict(orientation="h", y=-0.2),
+)
+st.plotly_chart(fig4, use_container_width=True)
+st.caption(
+    "Best-fit coefficients (deg 5): Fe70Si10B15C5="
+    f"{np.round(coeffs_fe70, 4)}, Co60Fe15Si15B10={np.round(coeffs_co60, 4)}, "
+    f"Co68.5Si14.5B14.5Y2.5={np.round(coeffs_co68, 4)}"
+)
 
-# Fig.1-inspired processing schematic
-axes[0].axis("off")
-boxes = ["Glass-coated rod", "Induction furnace", "Wire drawing", "Cooling", "Take-up spool"]
-for i, label in enumerate(boxes):
-    axes[0].text(0.1 + i * 0.18, 0.5, label, bbox=dict(facecolor="#e0f0ff", edgecolor="#1f77b4"), ha="center")
-    if i < len(boxes) - 1:
-        axes[0].annotate("", xy=(0.16 + i * 0.18, 0.5), xytext=(0.14 + i * 0.18, 0.5),
-                         arrowprops=dict(arrowstyle="->", color="#1f77b4"))
-axes[0].set_title("Fig. 1 style – glass-coated microwire line")
+st.subheader("Figure 6a – ΔZ/Z vs axial field across frequencies")
+fig6a = make_subplots(rows=1, cols=2, subplot_titles=("ΔZ/Z vs H", "ΔZ/Z and Hm vs frequency"))
 
-# Fig.3-inspired domain structure sketch
-axes[1].axis("off")
-axes[1].add_patch(plt.Circle((0.5, 0.5), 0.35, color="#ffe0e0", ec="#d62728", lw=2, alpha=0.6))
-axes[1].add_patch(plt.Circle((0.5, 0.5), 0.18, color="#e0ffe0", ec="#2ca02c", lw=2, alpha=0.6))
-axes[1].arrow(0.5, 0.5, 0.2, 0, head_width=0.05, color="#d62728")
-axes[1].arrow(0.5, 0.5, -0.2, 0, head_width=0.05, color="#2ca02c")
-axes[1].text(0.5, 0.82, "Tensile stress shell", ha="center", color="#d62728")
-axes[1].text(0.5, 0.18, "Axial core", ha="center", color="#2ca02c")
-axes[1].set_title("Fig. 3 style – core/shell domains")
+# ΔZ/Z vs H at different frequencies
+delta_h_02 = np.array([
+    0.25973166,
+    0.53350716,
+    0.87262629,
+    1.26394614,
+    1.75958791,
+    2.13832128,
+    2.66059337,
+    3.05252266,
+    3.4706848,
+    3.8369907,
+    4.30775101,
+    4.84396095,
+    5.22317129,
+    5.65460883,
+    5.95525313,
+    6.16458593,
+    6.3997541,
+    6.64814469,
+    6.94881548,
+    7.13183594,
+    7.30166049,
+    7.56306151,
+    7.82433004,
+    8.1119374,
+    8.26880451,
+    8.49088276,
+    8.73914086,
+    8.97430904,
+    9.22251414,
+    9.62755986,
+])
+delta_z_02 = np.array([
+    1.01078759,
+    1.38253383,
+    1.73629963,
+    2.1253771,
+    2.6383236,
+    2.70797313,
+    2.88360401,
+    2.8644643,
+    2.77423756,
+    2.41796771,
+    2.09682404,
+    1.68670564,
+    1.43688086,
+    1.20461917,
+    1.07931262,
+    0.86558781,
+    0.84700455,
+    0.72188349,
+    0.57882837,
+    0.48943631,
+    0.48883349,
+    0.3991632,
+    0.39823577,
+    0.25522703,
+    0.18367628,
+    0.18288797,
+    0.14650977,
+    0.12792652,
+    0.12704547,
+    0.07236224,
+])
 
-# Fig.9-inspired GMI sensor concept
-axes[2].axis("off")
-axes[2].add_patch(plt.Rectangle((0.15, 0.45), 0.7, 0.1, color="#ccccff", ec="#1f77b4"))
-axes[2].add_patch(plt.Rectangle((0.35, 0.4), 0.3, 0.2, color="#f5f5f5", ec="#7f7f7f"))
-axes[2].text(0.5, 0.55, "Microwire", ha="center", color="#1f77b4")
-axes[2].text(0.5, 0.43, "Pickup coil", ha="center", color="#7f7f7f")
-axes[2].arrow(0.2, 0.65, 0.6, 0, head_width=0.03, color="#ff7f0e")
-axes[2].text(0.5, 0.7, "Driving field/AC excitation", ha="center", color="#ff7f0e")
-axes[2].set_title("Fig. 9 style – GMI sensing coil")
+delta_h_05 = np.array([
+    1.17369455,
+    1.40859775,
+    1.68250574,
+    2.09979345,
+    2.72455911,
+    2.97191628,
+    3.16712574,
+    3.45385868,
+    3.70148083,
+    3.9099392,
+    4.13161998,
+    4.31434897,
+    4.54930516,
+    5.71306303,
+    6.93079696,
+    8.09548225,
+    9.20730439,
+    10.38417868,
+    11.54716811,
+    13.80751187,
+    15.97635864,
+    18.58938842,
+])
+delta_z_05 = np.array([
+    1.32701592,
+    1.48591839,
+    1.76892176,
+    2.26439792,
+    3.78854936,
+    4.35562264,
+    4.85188711,
+    5.29458126,
+    5.68416881,
+    6.0561469,
+    6.32158718,
+    6.42742942,
+    6.55083475,
+    5.80126766,
+    3.89785785,
+    2.52709071,
+    1.56472623,
+    0.77961562,
+    0.54475714,
+    0.28825491,
+    0.06757442,
+    0.17243127,
+])
 
-st.pyplot(fig)
-st.caption("Simplified sketches inspired by the paper's figures. For exact artwork, consult the embedded PDF on the Standards & Research page.")
+delta_h_1 = np.array([
+    5.43817462,
+    6.38258351,
+    7.29946117,
+    8.22847483,
+    9.18213146,
+    10.18934019,
+    11.11702896,
+    12.90666539,
+    13.72974076,
+    14.63117018,
+    15.49327684,
+    16.53827147,
+    17.24353751,
+    18.11899907,
+    4.5475563,
+    3.88291142,
+    3.43984133,
+    2.9583494,
+])
+delta_z_1 = np.array([
+    6.17496148,
+    3.5980797,
+    1.96196503,
+    0.94700402,
+    0.92587035,
+    0.03487113,
+    0.09266123,
+    0.06351694,
+    0.11968404,
+    -0.1583808,
+    0.10819558,
+    0.05865955,
+    0.04532784,
+    0.09976761,
+    7.72224055,
+    6.65969111,
+    5.93357625,
+    4.69289189,
+])
+
+delta_h_2 = np.array([
+    0.71737555,
+    1.08296601,
+    1.38329233,
+    1.74904177,
+    2.06256401,
+    3.01232546,
+    3.16619832,
+    3.42595647,
+    3.56663341,
+    3.84024993,
+    4.08612322,
+    4.35966024,
+    4.54119683,
+    4.73428646,
+    4.92708462,
+    5.26668071,
+    5.58025594,
+    5.74003781,
+    6.10872852,
+    6.47617382,
+    6.92401352,
+    7.34509042,
+    8.26318697,
+    8.69806924,
+    11.55938361,
+    15.45395407,
+])
+delta_z_2 = np.array([
+    0.72518744,
+    0.84812905,
+    0.93580538,
+    0.95225556,
+    0.95114265,
+    3.53904918,
+    5.47308716,
+    6.48382838,
+    8.50665559,
+    8.98489326,
+    10.54588661,
+    11.07737,
+    11.98189801,
+    13.8980483,
+    16.00943289,
+    16.04372439,
+    16.00711433,
+    13.98322059,
+    12.02957919,
+    10.91012071,
+    8.44149248,
+    6.39892273,
+    3.94637371,
+    1.40679755,
+    1.1126651,
+    0.0193136,
+])
+
+add_series_with_fit(fig6a, delta_h_02, delta_z_02, "0.2 MHz", "#1f77b4", degree=4, row=1, col=1)
+add_series_with_fit(fig6a, delta_h_05, delta_z_05, "0.5 MHz", "#ff7f0e", degree=4, row=1, col=1)
+add_series_with_fit(fig6a, delta_h_1, delta_z_1, "1 MHz", "#2ca02c", degree=4, row=1, col=1)
+add_series_with_fit(fig6a, delta_h_2, delta_z_2, "2 MHz", "#d62728", degree=4, row=1, col=1)
+
+# ΔZ/Z and Hm over frequency
+freq_06a_05 = np.array([0.19016708, 0.51088529, 1.00365254, 2.01284416])
+vals_06a_05 = np.array([1.23318386, 5.2690583, 6.8161435, 16.41255605])
+freq_06a_1 = np.array([0.18586962, 0.48141786, 0.99754689, 1.99405709])
+vals_06a_1 = np.array([0.73991031, 2.95964126, 2.95964126, 3.96860987])
+
+add_series_with_fit(fig6a, freq_06a_05, vals_06a_05, "ΔZ/Z @0.5 MHz", "#9467bd", degree=2, row=1, col=2, log_x=True)
+add_series_with_fit(fig6a, freq_06a_1, vals_06a_1, "ΔZ/Z @1 MHz", "#8c564b", degree=2, row=1, col=2, log_x=True)
+
+fig6a.update_xaxes(title_text="Field H [Oe]", row=1, col=1)
+fig6a.update_yaxes(title_text="ΔZ/Z [%]", row=1, col=1)
+fig6a.update_xaxes(title_text="Frequency [MHz] (log)", row=1, col=2, type="log")
+fig6a.update_yaxes(title_text="ΔZ/Z or Hm (approx) [% / Oe]", row=1, col=2)
+fig6a.update_layout(hovermode="x unified", height=500, legend=dict(orientation="h", y=-0.2))
+st.plotly_chart(fig6a, use_container_width=True)
+
+st.subheader("Figure 6b – ΔZ/Z vs frequency under applied stress")
+fig6b = go.Figure()
+
+stress_levels = {
+    "0 MPa": (np.array([0.99702397, 1.89455978, 2.83309304, 3.7042117, 4.56455697, 5.50403039, 6.37476373, 7.2928445, 8.14776455, 9.92357045, 9.04283434, 10.83229579]),
+               np.array([6.73883955, 23.00935403, 41.72499625, 52.7395149, 51.47052065, 38.95840076, 24.00069076, 13.81043655, 6.552463, 5.48205976, 5.10071416, 4.88609408])),
+    "110 MPa": (np.array([0.97655607, 1.89540747, 2.79989435, 3.65060676, 4.55241186, 5.48404028, 6.36104654, 7.0985536, 8.14798032, 9.03622235, 9.9030409, 10.82573003]),
+                 np.array([5.39405397, 19.64825705, 35.85777627, 45.28306593, 44.62587379, 35.71917871, 23.38935103, 14.17386504, 5.69691104, 3.81727063, 4.38171761, 3.41931798])),
+    "221 MPa": (np.array([0.15244577, 0.9626077, 1.90329871, 2.81530693, 3.70798778, 4.5603031, 5.47066217, 6.34722146, 7.09164877, 8.11308626, 9.05021697, 9.89615148, 10.83961676]),
+                 np.array([0.49142991, 5.69937705, 15.85949968, 29.74692204, 37.76735561, 40.83711642, 33.76340018, 23.20578728, 14.05152774, 6.55188503, 3.32861498, 4.19826945, 3.35843831])),
+    "331 MPa": (np.array([0.45046329, 0.97677185, 1.86227044, 2.78190788, 3.66759142, 4.58228143, 5.46442007, 6.33333473, 7.06390613, 8.14104466, 9.02927128, 9.90302549, 10.82573003]),
+                 np.array([1.35195242, 4.53850201, 13.53659365, 24.67414317, 32.93890456, 36.19303828, 31.01329615, 23.26666695, 14.05106536, 5.69679545, 3.87826589, 4.44282846, 3.41931798])),
+    "426 MPa": (np.array([0.47123944, 0.96974372, 1.88309283, 2.79624157, 3.66905562, 4.51469729, 5.45910274, 6.37622793, 7.27305476, 8.16222154, 9.05010908, 9.889185]),
+                 np.array([1.47452091, 4.90505154, 13.47582958, 22.84104873, 27.13337341, 29.1641341, 24.59654086, 18.19515961, 9.77677339, 4.23048173, 3.75639096, 4.32037556])),
+    "566 MPa": (np.array([0.4434968, 0.97672561, 1.91820267, 2.79004572, 3.71156349, 4.54325679, 5.45962676, 6.36272651, 7.25919885, 8.14141457, 9.95163675]),
+                 np.array([1.47405854, 4.72183457, 11.76530363, 19.90761213, 23.58963743, 25.9257212, 22.51877181, 16.72826792, 9.71543135, 4.23013494, 4.1991942])),
+}
+
+for idx, (label, (freq_arr, val_arr)) in enumerate(stress_levels.items()):
+    degree = 3 if idx < 3 else 2
+    color = COLORWAY[idx % len(COLORWAY)]
+    coeffs = add_series_with_fit(fig6b, freq_arr, val_arr, label, color, degree=degree)
+    fig6b.add_annotation(
+        text=f"{label} fit coeffs: {np.round(coeffs, 3)}",
+        xref="paper",
+        yref="paper",
+        x=0,
+        y=1 - idx * 0.05,
+        showarrow=False,
+        font=dict(size=9),
+    )
+
+fig6b.update_layout(
+    title="Figure 6b – ΔZ/Z vs frequency with axial stress",
+    xaxis_title="Frequency [MHz]",
+    yaxis_title="ΔZ/Z [%]",
+    hovermode="x unified",
+    legend=dict(orientation="h", y=-0.2),
+)
+st.plotly_chart(fig6b, use_container_width=True)
+
+st.subheader("Figure 7 – Anisotropy field and resonance frequency vs Dm/Dt")
+dm_dt = np.array([0.16069142, 0.2206146, 0.24366197, 0.64161332])
+anisotropy = np.array([13.26064736, 10.37478705, 8.15672913, 7.36967632])
+dm_dt_f = np.array([0.15838668, 0.2206146, 0.24519846, 0.64314981])
+res_freq = np.array([8.72913118, 5.17546848, 3.79216354, 1.16865417])
+
+fig7 = make_subplots(specs=[[{"secondary_y": True}]])
+coeffs_aniso = add_series_with_fit(fig7, dm_dt, anisotropy, "Anisotropy field", "#1f77b4", degree=2)
+coeffs_freq = add_series_with_fit(fig7, dm_dt_f, res_freq, "Resonance frequency", "#d62728", degree=2, row=1, col=1)
+fig7.update_yaxes(title_text="H_k [Oe]", secondary_y=False)
+fig7.update_yaxes(title_text="Resonance f [GHz]", secondary_y=True)
+fig7.update_xaxes(title_text="D_m/D_t")
+fig7.update_layout(hovermode="x unified", title="Figure 7 – Anisotropy field and resonance vs D_m/D_t", legend=dict(orientation="h", y=-0.2))
+st.plotly_chart(fig7, use_container_width=True)
+st.caption(
+    "Fits: H_k coeffs="
+    f"{np.round(coeffs_aniso, 4)}, f_res coeffs={np.round(coeffs_freq, 4)}."
+)
