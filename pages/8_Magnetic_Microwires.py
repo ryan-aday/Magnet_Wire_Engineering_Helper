@@ -4,6 +4,7 @@ from typing import Optional
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from scipy.optimize import curve_fit
 
 COLORWAY = [
     "#1f77b4",
@@ -44,6 +45,12 @@ def _optional(value: float) -> Optional[float]:
     return value if value != 0 else None
 
 
+def _elliptic_curve(x, x0, a, b, y0):
+    inside = 1 - ((x - x0) / a) ** 2
+    inside_clipped = np.clip(inside, 0, None)
+    return y0 + b * np.sqrt(inside_clipped)
+
+
 def add_series_with_fit(
     fig,
     x,
@@ -54,14 +61,42 @@ def add_series_with_fit(
     row: int = 1,
     col: int = 1,
     log_x: bool = False,
+    fit_type: str = "chebyshev",
 ):
-    cheb = np.polynomial.Chebyshev.fit(x, y, degree, domain=[min(x), max(x)])
-    coeffs = cheb.convert().coef
+    x = np.array(x)
+    y = np.array(y)
     x_dense = (
         np.logspace(np.log10(min(x)), np.log10(max(x)), 400)
         if log_x
         else np.linspace(min(x), max(x), 400)
     )
+
+    if fit_type == "elliptic":
+        try:
+            x0_guess = float(x.mean())
+            a_guess = float((x.max() - x.min()) / 2) or 1.0
+            b_guess = float((y.max() - y.min()) / 2) or 1.0
+            y0_guess = float(y.min())
+            popt, _ = curve_fit(
+                _elliptic_curve,
+                x,
+                y,
+                p0=[x0_guess, a_guess, b_guess, y0_guess],
+                maxfev=20000,
+            )
+            fit_y = _elliptic_curve(x_dense, *popt)
+            coeffs = popt
+            fit_name = f"{name} elliptic fit"
+        except Exception:
+            cheb = np.polynomial.Chebyshev.fit(x, y, degree, domain=[min(x), max(x)])
+            coeffs = cheb.convert().coef
+            fit_y = cheb(x_dense)
+            fit_name = f"{name} Chebyshev fit (deg {degree})"
+    else:
+        cheb = np.polynomial.Chebyshev.fit(x, y, degree, domain=[min(x), max(x)])
+        coeffs = cheb.convert().coef
+        fit_y = cheb(x_dense)
+        fit_name = f"{name} Chebyshev fit (deg {degree})"
 
     use_grid = bool(getattr(fig, "_grid_ref", None))
 
@@ -75,9 +110,9 @@ def add_series_with_fit(
     )
     fit_args = dict(
         x=x_dense,
-        y=cheb(x_dense),
+        y=fit_y,
         mode="lines",
-        name=f"{name} Chebyshev fit (deg {degree})",
+        name=fit_name,
         line=dict(color=color),
         hovertemplate="x: %{x:.3g}<br>y: %{y:.3g}<extra></extra>",
     )
@@ -552,10 +587,20 @@ delta_z_2 = np.array([
     0.0193136,
 ])
 
-add_series_with_fit(fig6a, delta_h_02, delta_z_02, "0.2 MHz", "#1f77b4", degree=2, row=1, col=1)
-add_series_with_fit(fig6a, delta_h_05, delta_z_05, "0.5 MHz", "#ff7f0e", degree=2, row=1, col=1)
-add_series_with_fit(fig6a, delta_h_1, delta_z_1, "1 MHz", "#2ca02c", degree=2, row=1, col=1)
-add_series_with_fit(fig6a, delta_h_2, delta_z_2, "2 MHz", "#d62728", degree=2, row=1, col=1)
+add_series_with_fit(fig6a, delta_h_02, delta_z_02, "0.2 MHz", "#1f77b4", degree=4, row=1, col=1)
+add_series_with_fit(fig6a, delta_h_05, delta_z_05, "0.5 MHz", "#ff7f0e", degree=4, row=1, col=1)
+add_series_with_fit(fig6a, delta_h_1, delta_z_1, "1 MHz", "#2ca02c", degree=4, row=1, col=1)
+add_series_with_fit(
+    fig6a,
+    delta_h_2,
+    delta_z_2,
+    "2 MHz",
+    "#d62728",
+    degree=4,
+    row=1,
+    col=1,
+    fit_type="elliptic",
+)
 
 # ΔZ/Z and Hm over frequency
 freq_06a_05 = np.array([0.19016708, 0.51088529, 1.00365254, 2.01284416])

@@ -22,6 +22,11 @@ def _sigmoid(x, L, x0, k, b):
     return L / (1 + np.exp(-k * (x - x0))) + b
 
 
+def _elliptic_curve(x, x0, a, b, y0):
+    inside = 1 - ((x - x0) / a) ** 2
+    return y0 + b * np.sqrt(np.clip(inside, 0, None))
+
+
 def add_trace_with_fit(fig, row, col, name, x, y, degree, x_label, y_label, color, fit_type="chebyshev"):
     x = np.array(x)
     y = np.array(y)
@@ -49,6 +54,20 @@ def add_trace_with_fit(fig, row, col, name, x, y, degree, x_label, y_label, colo
             popt, _ = curve_fit(_sigmoid, x, y, p0=[L_guess, x0_guess, k_guess, b_guess])
             fit_y = _sigmoid(x_dense, *popt)
             coeff_text = f"L={popt[0]:.4g}, x0={popt[1]:.4g}, k={popt[2]:.4g}, b={popt[3]:.4g}"
+        except Exception:
+            cheb = np.polynomial.Chebyshev.fit(x, y, degree, domain=[float(x.min()), float(x.max())])
+            fit_y = cheb(x_dense)
+            coeffs = cheb.convert().coef
+            coeff_text = f"Cheb coeffs: {np.round(coeffs, 4)}"
+    elif fit_type == "elliptic":
+        try:
+            x0_guess = float(x.mean())
+            a_guess = float((x.max() - x.min()) / 2) or 1.0
+            b_guess = float((y.max() - y.min()) / 2) or 1.0
+            y0_guess = float(y.min())
+            popt, _ = curve_fit(_elliptic_curve, x, y, p0=[x0_guess, a_guess, b_guess, y0_guess], maxfev=20000)
+            fit_y = _elliptic_curve(x_dense, *popt)
+            coeff_text = f"x0={popt[0]:.4g}, a={popt[1]:.4g}, b={popt[2]:.4g}, y0={popt[3]:.4g}"
         except Exception:
             cheb = np.polynomial.Chebyshev.fit(x, y, degree, domain=[float(x.min()), float(x.max())])
             fit_y = cheb(x_dense)
@@ -517,6 +536,7 @@ for (name, points), color in zip(dma_data.items(), dma_colors):
         x_label="Temperature [°C]",
         y_label="Storage modulus [GPa]",
         color=color,
+        fit_type="elliptic",
     )
 
 dma_fig.update_layout(
