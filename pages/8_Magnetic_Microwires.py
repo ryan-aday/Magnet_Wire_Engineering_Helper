@@ -552,10 +552,10 @@ delta_z_2 = np.array([
     0.0193136,
 ])
 
-add_series_with_fit(fig6a, delta_h_02, delta_z_02, "0.2 MHz", "#1f77b4", degree=4, row=1, col=1)
-add_series_with_fit(fig6a, delta_h_05, delta_z_05, "0.5 MHz", "#ff7f0e", degree=4, row=1, col=1)
-add_series_with_fit(fig6a, delta_h_1, delta_z_1, "1 MHz", "#2ca02c", degree=4, row=1, col=1)
-add_series_with_fit(fig6a, delta_h_2, delta_z_2, "2 MHz", "#d62728", degree=4, row=1, col=1)
+add_series_with_fit(fig6a, delta_h_02, delta_z_02, "0.2 MHz", "#1f77b4", degree=2, row=1, col=1)
+add_series_with_fit(fig6a, delta_h_05, delta_z_05, "0.5 MHz", "#ff7f0e", degree=2, row=1, col=1)
+add_series_with_fit(fig6a, delta_h_1, delta_z_1, "1 MHz", "#2ca02c", degree=2, row=1, col=1)
+add_series_with_fit(fig6a, delta_h_2, delta_z_2, "2 MHz", "#d62728", degree=2, row=1, col=1)
 
 # ΔZ/Z and Hm over frequency
 freq_06a_05 = np.array([0.19016708, 0.51088529, 1.00365254, 2.01284416])
