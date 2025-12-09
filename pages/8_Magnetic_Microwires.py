@@ -596,10 +596,9 @@ add_series_with_fit(
     delta_z_2,
     "2 MHz",
     "#d62728",
-    degree=4,
+    degree=6,
     row=1,
     col=1,
-    fit_type="elliptic",
 )
 
 # ΔZ/Z and Hm over frequency

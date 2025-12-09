@@ -532,11 +532,10 @@ for (name, points), color in zip(dma_data.items(), dma_colors):
         name,
         xs,
         ys,
-        degree=2,
+        degree=6,
         x_label="Temperature [°C]",
         y_label="Storage modulus [GPa]",
         color=color,
-        fit_type="elliptic",
     )
 
 dma_fig.update_layout(
