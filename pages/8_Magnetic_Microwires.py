@@ -63,30 +63,31 @@ def add_series_with_fit(
         else np.linspace(min(x), max(x), 400)
     )
 
-    fig.add_trace(
-        go.Scatter(
-            x=x,
-            y=y,
-            mode="markers",
-            name=f"{name} points",
-            marker=dict(color=color, symbol="circle"),
-            hovertemplate="x: %{x:.3g}<br>y: %{y:.3g}<extra></extra>",
-        ),
-        row=row,
-        col=col,
+    use_grid = bool(getattr(fig, "_grid_ref", None))
+
+    scatter_args = dict(
+        x=x,
+        y=y,
+        mode="markers",
+        name=f"{name} points",
+        marker=dict(color=color, symbol="circle"),
+        hovertemplate="x: %{x:.3g}<br>y: %{y:.3g}<extra></extra>",
     )
-    fig.add_trace(
-        go.Scatter(
-            x=x_dense,
-            y=cheb(x_dense),
-            mode="lines",
-            name=f"{name} Chebyshev fit (deg {degree})",
-            line=dict(color=color),
-            hovertemplate="x: %{x:.3g}<br>y: %{y:.3g}<extra></extra>",
-        ),
-        row=row,
-        col=col,
+    fit_args = dict(
+        x=x_dense,
+        y=cheb(x_dense),
+        mode="lines",
+        name=f"{name} Chebyshev fit (deg {degree})",
+        line=dict(color=color),
+        hovertemplate="x: %{x:.3g}<br>y: %{y:.3g}<extra></extra>",
     )
+
+    if use_grid:
+        fig.add_trace(go.Scatter(**scatter_args), row=row, col=col)
+        fig.add_trace(go.Scatter(**fit_args), row=row, col=col)
+    else:
+        fig.add_trace(go.Scatter(**scatter_args))
+        fig.add_trace(go.Scatter(**fit_args))
     return coeffs
 
 
@@ -573,7 +574,7 @@ fig6a.update_layout(hovermode="x unified", height=500, legend=dict(orientation="
 st.plotly_chart(fig6a, use_container_width=True)
 
 st.subheader("Figure 6b – ΔZ/Z vs frequency under applied stress")
-fig6b = go.Figure()
+fig6b = make_subplots(rows=1, cols=1)
 
 stress_levels = {
     "0 MPa": (np.array([0.99702397, 1.89455978, 2.83309304, 3.7042117, 4.56455697, 5.50403039, 6.37476373, 7.2928445, 8.14776455, 9.92357045, 9.04283434, 10.83229579]),
@@ -593,7 +594,16 @@ stress_levels = {
 for idx, (label, (freq_arr, val_arr)) in enumerate(stress_levels.items()):
     degree = 3 if idx < 3 else 2
     color = COLORWAY[idx % len(COLORWAY)]
-    coeffs = add_series_with_fit(fig6b, freq_arr, val_arr, label, color, degree=degree)
+    coeffs = add_series_with_fit(
+        fig6b,
+        freq_arr,
+        val_arr,
+        label,
+        color,
+        degree=degree,
+        row=1,
+        col=1,
+    )
     fig6b.add_annotation(
         text=f"{label} fit coeffs: {np.round(coeffs, 3)}",
         xref="paper",

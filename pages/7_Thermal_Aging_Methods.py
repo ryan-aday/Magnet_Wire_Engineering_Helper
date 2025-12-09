@@ -1,6 +1,7 @@
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from scipy.optimize import curve_fit
 import streamlit as st
 
 st.title("Thermal Accelerated Aging Methods")
@@ -17,13 +18,13 @@ st.markdown(
 st.markdown(
     "Reference: https://www.researchgate.net/publication/327607082_Thermal_Accelerated_Aging_Methods_for_Magnet_Wire_A_Review"
 )
+def _sigmoid(x, L, x0, k, b):
+    return L / (1 + np.exp(-k * (x - x0))) + b
 
 
-def add_trace_with_fit(fig, row, col, name, x, y, degree, x_label, y_label, color):
+def add_trace_with_fit(fig, row, col, name, x, y, degree, x_label, y_label, color, fit_type="chebyshev"):
     x = np.array(x)
     y = np.array(y)
-    cheb = np.polynomial.Chebyshev.fit(x, y, degree, domain=[float(x.min()), float(x.max())])
-    coeffs = cheb.convert().coef
     x_dense = np.linspace(float(x.min()), float(x.max()), 400)
 
     fig.add_trace(
@@ -38,12 +39,33 @@ def add_trace_with_fit(fig, row, col, name, x, y, degree, x_label, y_label, colo
         row=row,
         col=col,
     )
+
+    if fit_type == "sigmoid":
+        try:
+            L_guess = float(y.max() - y.min())
+            x0_guess = float(x.mean())
+            k_guess = 0.01
+            b_guess = float(y.min())
+            popt, _ = curve_fit(_sigmoid, x, y, p0=[L_guess, x0_guess, k_guess, b_guess])
+            fit_y = _sigmoid(x_dense, *popt)
+            coeff_text = f"L={popt[0]:.4g}, x0={popt[1]:.4g}, k={popt[2]:.4g}, b={popt[3]:.4g}"
+        except Exception:
+            cheb = np.polynomial.Chebyshev.fit(x, y, degree, domain=[float(x.min()), float(x.max())])
+            fit_y = cheb(x_dense)
+            coeffs = cheb.convert().coef
+            coeff_text = f"Cheb coeffs: {np.round(coeffs, 4)}"
+    else:
+        cheb = np.polynomial.Chebyshev.fit(x, y, degree, domain=[float(x.min()), float(x.max())])
+        fit_y = cheb(x_dense)
+        coeffs = cheb.convert().coef
+        coeff_text = f"Cheb coeffs: {np.round(coeffs, 4)}"
+
     fig.add_trace(
         go.Scatter(
             x=x_dense,
-            y=cheb(x_dense),
+            y=fit_y,
             mode="lines",
-            name=f"{name} Chebyshev fit",
+            name=f"{name} fit ({fit_type})",
             line=dict(color=color, dash="dash"),
             hovertemplate=f"{x_label}: %{{x:.2f}}<br>{y_label}: %{{y:.4g}}<extra></extra>",
         ),
@@ -59,7 +81,7 @@ def add_trace_with_fit(fig, row, col, name, x, y, degree, x_label, y_label, colo
         y=0.05,
         xanchor="right",
         yanchor="bottom",
-        text=f"{name} fit coeffs: {np.round(coeffs, 4)}",
+        text=f"{name} fit coeffs: {coeff_text}",
         font=dict(size=10),
         showarrow=False,
         bgcolor="rgba(255,255,255,0.7)",
@@ -235,6 +257,7 @@ for (name, points), color in zip(thermograv_data.items(), colors):
         x_label="Temperature [°C]",
         y_label="Weight [%]",
         color=color,
+        fit_type="sigmoid",
     )
 
 tga_fig.update_layout(
@@ -490,7 +513,7 @@ for (name, points), color in zip(dma_data.items(), dma_colors):
         name,
         xs,
         ys,
-        degree=4,
+        degree=3,
         x_label="Temperature [°C]",
         y_label="Storage modulus [GPa]",
         color=color,
