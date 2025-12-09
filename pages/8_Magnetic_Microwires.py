@@ -44,10 +44,24 @@ def _optional(value: float) -> Optional[float]:
     return value if value != 0 else None
 
 
-def add_series_with_fit(fig, x, y, name: str, color: str, degree: int, row: int = 1, col: int = 1, log_x: bool = False):
-    coeffs = np.polyfit(x, y, degree)
-    poly = np.poly1d(coeffs)
-    x_dense = np.logspace(np.log10(min(x)), np.log10(max(x)), 400) if log_x else np.linspace(min(x), max(x), 400)
+def add_series_with_fit(
+    fig,
+    x,
+    y,
+    name: str,
+    color: str,
+    degree: int,
+    row: int = 1,
+    col: int = 1,
+    log_x: bool = False,
+):
+    cheb = np.polynomial.Chebyshev.fit(x, y, degree, domain=[min(x), max(x)])
+    coeffs = cheb.convert().coef
+    x_dense = (
+        np.logspace(np.log10(min(x)), np.log10(max(x)), 400)
+        if log_x
+        else np.linspace(min(x), max(x), 400)
+    )
 
     fig.add_trace(
         go.Scatter(
@@ -64,9 +78,9 @@ def add_series_with_fit(fig, x, y, name: str, color: str, degree: int, row: int 
     fig.add_trace(
         go.Scatter(
             x=x_dense,
-            y=poly(x_dense),
+            y=cheb(x_dense),
             mode="lines",
-            name=f"{name} fit (deg {degree})",
+            name=f"{name} Chebyshev fit (deg {degree})",
             line=dict(color=color),
             hovertemplate="x: %{x:.3g}<br>y: %{y:.3g}<extra></extra>",
         ),
@@ -130,7 +144,7 @@ st.caption("Digitized points approximate the paper's plots; polynomial fits smoo
 
 # Figure 4 – Magnetization vs axial magnetic field for multiple alloys
 st.subheader("Figure 4 – Magnetization vs axial magnetic field")
-fig4 = go.Figure()
+fig4 = make_subplots(rows=1, cols=1)
 
 fe70_h = np.array([
     -89.16215218,
@@ -303,9 +317,9 @@ co68_m = np.array([
     5.41311853,
 ])
 
-coeffs_fe70 = add_series_with_fit(fig4, fe70_h, fe70_m, "Fe70Si10B15C5", "#1f77b4", degree=5, row=1, col=1)
-coeffs_co60 = add_series_with_fit(fig4, co60_h, co60_m, "Co60Fe15Si15B10", "#2ca02c", degree=5, row=1, col=1)
-coeffs_co68 = add_series_with_fit(fig4, co68_h, co68_m, "Co68.5Si14.5B14.5Y2.5", "#d62728", degree=5, row=1, col=1)
+coeffs_fe70 = add_series_with_fit(fig4, fe70_h, fe70_m, "Fe70Si10B15C5", "#1f77b4", degree=4, row=1, col=1)
+coeffs_co60 = add_series_with_fit(fig4, co60_h, co60_m, "Co60Fe15Si15B10", "#2ca02c", degree=4, row=1, col=1)
+coeffs_co68 = add_series_with_fit(fig4, co68_h, co68_m, "Co68.5Si14.5B14.5Y2.5", "#d62728", degree=4, row=1, col=1)
 
 fig4.update_layout(
     title="Figure 4 – Magnetization vs axial field",
@@ -316,7 +330,7 @@ fig4.update_layout(
 )
 st.plotly_chart(fig4, use_container_width=True)
 st.caption(
-    "Best-fit coefficients (deg 5): Fe70Si10B15C5="
+    "Chebyshev fit coefficients (deg 4): Fe70Si10B15C5="
     f"{np.round(coeffs_fe70, 4)}, Co60Fe15Si15B10={np.round(coeffs_co60, 4)}, "
     f"Co68.5Si14.5B14.5Y2.5={np.round(coeffs_co68, 4)}"
 )

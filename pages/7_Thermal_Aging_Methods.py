@@ -22,8 +22,8 @@ st.markdown(
 def add_trace_with_fit(fig, row, col, name, x, y, degree, x_label, y_label, color):
     x = np.array(x)
     y = np.array(y)
-    coeffs = np.polyfit(x, y, degree)
-    poly = np.poly1d(coeffs)
+    cheb = np.polynomial.Chebyshev.fit(x, y, degree, domain=[float(x.min()), float(x.max())])
+    coeffs = cheb.convert().coef
     x_dense = np.linspace(float(x.min()), float(x.max()), 400)
 
     fig.add_trace(
@@ -41,9 +41,9 @@ def add_trace_with_fit(fig, row, col, name, x, y, degree, x_label, y_label, colo
     fig.add_trace(
         go.Scatter(
             x=x_dense,
-            y=poly(x_dense),
+            y=cheb(x_dense),
             mode="lines",
-            name=f"{name} fit",
+            name=f"{name} Chebyshev fit",
             line=dict(color=color, dash="dash"),
             hovertemplate=f"{x_label}: %{{x:.2f}}<br>{y_label}: %{{y:.4g}}<extra></extra>",
         ),
