@@ -145,19 +145,38 @@ st.latex(r"C \approx k_0 e^{-E_a/(R \bar{T}_w)} \frac{L}{v}\quad (C \approx 1 \R
 st.caption("Temperatures are in kelvin inside the kinetics; inputs below accept °C and convert internally.")
 
 st.markdown(
-    r"The controller sketch and solver follow the same flow described in the earlier LLM breakdown: "
-    r"the moving-wire energy balance is solved to get the exponential temperature rise, the thermal "
-    r"length scale \(L_\theta\) shapes the average temperature, and Arrhenius kinetics integrate "
-    r"over residence time to form the cure index \(C\). Closed-loop control compares a target \(C\) "
-    r"with the estimated \(\hat{C}\) from these equations and adjusts speed or setpoints."
+    r"""
+    The controller sketch and solver follow the same flow described in the earlier LLM breakdown: the moving-wire energy balance
+    is solved to get the exponential temperature rise, the thermal length scale \(L_\theta\) shapes the average temperature, and
+    Arrhenius kinetics integrate over residence time to form the cure index \(C\). Closed-loop control compares a target \(C\)
+    with the estimated \(\hat{C}\) from these equations and adjusts speed or setpoints.
+    """
 )
 
 st.markdown(
-    r"Gas constant **R** defaults to 8.314 J/mol·K; Arrhenius defaults are **" "k_0 = 3.0×10^4 s^{-1}" "** and **" "E_a = 90 kJ/mol" "**, tuned so the default inputs (380 °C air, 0.05 m/s line speed, 30 m heated length, ≈1 mm wire, h ≈ 500 W/m²·K) yield **C ≈ 1**. Adjust them to match your enamel data; 380 °C sits within the ≈550 °F (288 °C) bake guidance from lpenamelwire while keeping the demo stable."
+    r"""
+    **Defaults and why**
+
+    - Gas constant \(R = 8.314\,\text{J/mol·K}\).
+    - Demo kinetics \(k_0 = 3.0\times10^{4}\,\text{s}^{-1}\), \(E_a = 90\,\text{kJ/mol}\); with the default inputs (380 °C air,
+      0.05 m/s line speed, 30 m heated length, ≈1 mm wire, \(h \approx 500\,\text{W/m}^2\cdot\text{K}\)) they give \(C \approx 1\).
+      380 °C stays inside the ≈550 °F (288 °C) bake guidance from lpenamelwire while keeping the demo stable.
+    - Edit \(R\), \(k_0\), and \(E_a\) below to match your enamel data and expected cure window.
+    """
 )
 
 st.markdown(
-    r"**How to identify k_0 and E_a in practice:** (1) Supplier kinetics or cure-time charts: use equivalent cure points (e.g., 5 min @ 420 °C, 10 min @ 400 °C) to fit an Arrhenius line: plot ln t vs 1/T; slope → E_a/R, intercept → −ln k_0 + ln C_target. (2) In-house cure or DSC tests: measure time-to-cure at multiple temperatures (gel fraction, exotherm, modulus) and fit the same ln t vs 1/T line to extract E_a and k_0. (3) Control-oriented shortcut: pick one proven oven condition (T_ref, v_ref) that yields acceptable cure, assume T̄_w ≈ T_ref, and back-solve k_0 for C ≈ 1 using your chosen E_a; then refine both parameters against two or more additional test points."
+    r"""
+    **How to identify \(k_0\) and \(E_a\) in practice**
+
+    1. Supplier kinetics or cure-time charts: use equivalent cure points (e.g., 5 min @ 420 °C, 10 min @ 400 °C) to fit an Arrhenius
+       line. Plot \(\ln t\) vs \(1/T\); slope → \(E_a/R\), intercept → \(-\ln k_0 + \ln C_{\text{target}}\).
+    2. In-house cure or DSC tests: measure time-to-cure at multiple temperatures (gel fraction, exotherm, modulus) and fit the same
+       \(\ln t\) vs \(1/T\) line to extract \(E_a\) and \(k_0\).
+    3. Control-oriented shortcut: pick one proven oven condition \((T_{ref}, v_{ref})\) that yields acceptable cure, assume
+       \(\bar{T}_w \approx T_{ref}\), and back-solve \(k_0\) for \(C \approx 1\) using your chosen \(E_a\); then refine both parameters
+       against two or more additional test points.
+    """
 )
 
 st.divider()
