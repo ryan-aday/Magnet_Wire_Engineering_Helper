@@ -16,6 +16,18 @@ st.markdown(
     * **IEC 60317** – international series for enamelled winding wires (round/rectangular, Cu/Al).
     * **IEC 60851** – test methods (breakdown, adhesion, flexibility, resistivity, etc.).
     * Thermal classes commonly used: 105°C, 130°C, 155°C, 180°C, 200°C, 220–240°C.
+    * **Elektrisola magnet-wire technical data** – thickness builds, OD tables, resistivity, and
+      insulation notes: https://www.elektrisola.com/en-us/Products/Enamelled-Wire/Technical-Data
+    """
+)
+
+st.header("Additional slide decks / notes")
+st.markdown(
+    """
+    * University of Minnesota EE5323 – magnet wire overview slides:
+      https://people.ece.umn.edu/~kia/Courses/EE5323/Slides/Lect_06_Wires.pdf
+    * Lumped-capacitance refresher (thermal response background):
+      https://etrl.mechanical.illinois.edu/pdf/ME320/Lecture%2012%20-%20Lumped%20Capacitance.pdf
     """
 )
 
