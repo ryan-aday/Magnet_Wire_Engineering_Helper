@@ -152,38 +152,12 @@ st.markdown(
     r"with the estimated \(\hat{C}\) from these equations and adjusts speed or setpoints."
 )
 
-st.subheader("How these equations form the model")
 st.markdown(
-    """
-    The above narrative walks through the exact ODE, thermal length scale, averaged temperature,
-    and Arrhenius kinetics that build the cure-index model. The calculators below directly use
-    those relationships.
-    """
-)
-
-st.info(
-    r"""
-    Gas constant \(R\) defaults to the universal 8.314 J/mol·K. The Arrhenius pair defaults to
-    \(k_0 = 3.0\times10^4\,\text{s}^{-1}\) and \(E_a = 90\,\text{kJ/mol}\), tuned so the default
-    inputs (380 °C air, 0.05 m/s line speed, 30 m heated length, ≈1 mm wire, \(h\) ≈ 500 W/m²·K)
-    produce \(C \approx 1\). Edit all three to match your enamel data; the 380 °C default sits
-    inside the ≈550 °F (288 °C) bake guidance noted by lpenamelwire while still demonstrating the model.
-    """
+    r"Gas constant **R** defaults to 8.314 J/mol·K; Arrhenius defaults are **" "k_0 = 3.0×10^4 s^{-1}" "** and **" "E_a = 90 kJ/mol" "**, tuned so the default inputs (380 °C air, 0.05 m/s line speed, 30 m heated length, ≈1 mm wire, h ≈ 500 W/m²·K) yield **C ≈ 1**. Adjust them to match your enamel data; 380 °C sits within the ≈550 °F (288 °C) bake guidance from lpenamelwire while keeping the demo stable."
 )
 
 st.markdown(
-    r"""
-    **How to identify \(k_0\) and \(E_a\) in practice**
-
-    1. **Supplier kinetics or cure-time charts:** use “equivalent cure” points (e.g., 5 min @ 420 °C,
-       10 min @ 400 °C) to fit an Arrhenius line: plot \(\ln t\) vs. \(1/T\); slope → \(E_a/R\),
-       intercept → \(-\ln k_0 + \ln C_{target}\).
-    2. **In-house cure or DSC tests:** measure time-to-cure at multiple temperatures (gel fraction,
-       exotherm, modulus) and fit the same \(\ln t\) vs. \(1/T\) line to extract \(E_a\) and \(k_0\).
-    3. **Control-oriented shortcut:** pick one proven oven condition \((T_{ref}, v_{ref})\) that yields
-       acceptable cure, assume \(\bar{T}_w \approx T_{ref}\), and back-solve \(k_0\) for \(C \approx 1\)
-       using your chosen \(E_a\); then refine both parameters against two or more additional test points.
-    """
+    r"**How to identify k_0 and E_a in practice:** (1) Supplier kinetics or cure-time charts: use equivalent cure points (e.g., 5 min @ 420 °C, 10 min @ 400 °C) to fit an Arrhenius line: plot ln t vs 1/T; slope → E_a/R, intercept → −ln k_0 + ln C_target. (2) In-house cure or DSC tests: measure time-to-cure at multiple temperatures (gel fraction, exotherm, modulus) and fit the same ln t vs 1/T line to extract E_a and k_0. (3) Control-oriented shortcut: pick one proven oven condition (T_ref, v_ref) that yields acceptable cure, assume T̄_w ≈ T_ref, and back-solve k_0 for C ≈ 1 using your chosen E_a; then refine both parameters against two or more additional test points."
 )
 
 st.divider()
@@ -392,6 +366,14 @@ else:
             st.error("Could not solve for convection coefficient with the provided guesses.")
 
 st.divider()
+
+st.subheader("Closed-loop block diagram")
+st.caption("Illustrative flow mirroring the provided cure-control schematic.")
+diagram_path = Path("data/system_diagram.png")
+if diagram_path.exists():
+    st.image(str(diagram_path), caption="Closed-loop cure control schematic", use_container_width=True)
+else:
+    st.warning("system_diagram.png not found in data/. Add the provided diagram to display it here.")
 
 st.subheader("PID helper (from Digi-Key tutorial)")
 st.markdown(
