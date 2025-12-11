@@ -555,8 +555,6 @@ delta_h_2 = np.array([
     7.34509042,
     8.26318697,
     8.69806924,
-    11.55938361,
-    15.45395407,
 ])
 delta_z_2 = np.array([
     0.72518744,
@@ -583,8 +581,6 @@ delta_z_2 = np.array([
     6.39892273,
     3.94637371,
     1.40679755,
-    1.1126651,
-    0.0193136,
 ])
 
 add_series_with_fit(fig6a, delta_h_02, delta_z_02, "0.2 MHz", "#1f77b4", degree=4, row=1, col=1)
@@ -596,7 +592,7 @@ add_series_with_fit(
     delta_z_2,
     "2 MHz",
     "#d62728",
-    degree=6,
+    degree=4,
     row=1,
     col=1,
 )
