@@ -1,8 +1,6 @@
 import math
-from io import BytesIO
+from pathlib import Path
 
-import matplotlib.patches as patches
-import matplotlib.pyplot as plt
 import sympy as sp
 import streamlit as st
 
@@ -19,6 +17,216 @@ st.markdown(
     """
 )
 
+st.subheader("LLM-derived model walkthrough")
+st.markdown(
+    """
+    1. Simplified physics model of heating + cure
+    1.1 Variables
+
+    Let’s define the main knobs:
+
+    L – heated oven length [m]
+
+    v – line speed (draw speed) [m/s]
+
+    Tair – oven air temperature [K] (or °C + 273.15)
+
+    vair – air velocity [m/s] → affects h
+
+    dw – overall wire diameter (metal + enamel) [m]
+
+    te – enamel thickness (single side) [m]
+
+    ρeff, cp,eff – effective density & cp of metal + coating
+
+    h – convective heat-transfer coefficient [W/m²·K] (function of vair, gas props)
+
+    Tin – wire temperature entering oven [K]
+
+    Cure kinetics (Arrhenius-type):
+
+    k(T)=k0exp(−Ea/(R T)) [1/s]
+
+    Ea – activation energy [J/mol]
+
+    k0 – pre-exponential factor [1/s]
+
+    R – gas constant [J/mol·K]
+
+    We’ll define a dimensionless cure index:
+
+    C=1 → “fully cured enough” (your spec)
+
+    C<1 → undercured, C>1 → overbaked / excessively aged.
+
+    1.2 Heating of a moving wire in the oven
+
+    Take a length element dz of wire moving at speed v through a zone with air at Tair.
+
+    Energy balance (steady, 1D, lumped wire temp):
+
+    ρeff A cp,eff v dTw/dz = h P (Tair − Tw)
+
+    A = π dw² /4 is cross-sectional area
+
+    P = π dw is perimeter
+
+    Define
+
+    K = hP/(ρeff A cp,eff v) [1/m]
+
+    Solution along the oven (with z=0 at entrance):
+
+    Tw(z) = Tair − (Tair − Tin) e^(−K z)
+
+    Thermal length scale:
+
+    Lθ = 1/K = ρeff A cp,eff v/(hP)
+
+    If L ≫ Lθ, the wire essentially reaches air temperature.
+
+    1.3 Cure index along the oven
+
+    Residence time:
+
+    tres = L/v
+
+    Degree of cure (index) from 0→L:
+
+    C = ∫ k(Tw(t)) dt = ∫ k(Tw(z))/v dz
+
+    Exact integral is ugly, so for systems engineering we usually use a temperature average:
+
+    Compute average wire temperature along the oven:
+
+    T̄w = (1/L)∫Tw(z) dz = Tair − (Tair − Tin)(Lθ/L)[1−e^(−L/Lθ)]
+
+    Use Arrhenius cure at this effective temperature:
+
+    C ≈ k(T̄w) tres = k0 exp(−Ea/(R T̄w)) L/v
+
+    This is your core systems equation.
+
+    Now note:
+
+    T̄w depends on v, h, dw, etc. via Lθ.
+
+    h is itself a function of air flow / air velocity and gas properties:
+
+    Nu = h dw/kair = C1 Re^m Pr^n, Re = ρair vair dw / μ
+
+    So you can view C as:
+
+    C = F(Tair, v, vair, dw, te, material props)
+
+    And enforce:
+
+    C = Ctarget (≈1)
+
+    This is the systems engineering constraint your controller must satisfy.
+
+    2. Solving for one parameter in terms of others
+
+    You now have a single equation:
+
+    Ctarget = k0 exp(−Ea/(R T̄w)) L/v
+
+    with
+
+    T̄w = Tair − (Tair − Tin)(Lθ/L)[1−e^(−L/Lθ)]
+
+    Lθ = ρeff A cp,eff v/(hP)
+
+    h = h(vair, dw, air props)
+
+    Given numerical values for everything except ONE variable, you can solve for that unknown (analytically in simple cases, numerically in general). A few examples:
+
+    2.1 Solve for line speed v (common design case)
+
+    In full form, v appears inside both T̄w and the L/v term, so you solve numerically:
+
+    0 = k0 exp(−Ea/(R T̄w(v))) L/v − Ctarget
+
+    Use a root-finder (Newton, bisection) in your Python control script.
+
+    For quick design approximations (long oven, small wire) you can assume T̄w ≈ Tair. Then:
+
+    Ctarget ≈ k0 exp(−Ea/(R Tair)) L/v
+
+    So:
+
+    v ≈ k0 L/Ctarget exp(−Ea/(R Tair))
+
+    All the geometry & air-side stuff is then lumped into k0 (you can treat an “effective” k0 as a calibrated parameter).
+
+    2.2 Solve for oven temperature Tair
+
+    Using the simplified model (T̄w ≈ Tair):
+
+    Ctarget = k0 exp(−Ea/(R Tair)) L/v
+
+    Rearrange for Tair:
+
+    exp(−Ea/(R Tair)) = Ctarget v/(k0 L)
+
+    Tair = −Ea/(R ln(Ctarget v/(k0 L)))
+
+    Valid as long as the log argument is between 0 and 1 (physically, you’re in the feasible region).
+
+    2.3 Solve for air-side coefficient h or air velocity vair
+
+    From the full average temperature expression, h appears in Lθ and thus in T̄w. So for target cure:
+
+    0 = k0 exp(−Ea/(R T̄w(h))) L/v − Ctarget
+
+    Again, numerically solve for h (or vair, via the Nu–Re correlation) given everything else.
+
+    2.4 Enamel thickness / wire diameter effects
+
+    Enamel thickness changes:
+
+    • The thermal mass (via ρeff, cp,eff, A)
+    • The surface exposure (via dw → perimeter P)
+    • Potentially cure kinetics (if you distinguish bulk vs near-surface cure)
+
+    In the model, these all enter through Lθ, hence T̄w, hence the cure index.
+
+    So, for example, if you want to find the max enamel thickness you can cure at given T, v, and air flow, you again numerically solve:
+
+    Ctarget = F(Tair, v, vair, dw(te), te)
+
+    for te.
+
+    3. Closed-loop control architecture
+    3.1 What you can actually measure
+
+    Real-world “cure” is hard to measure directly in real time, so you typically estimate it from:
+
+    • Measured oven air temps in each zone
+    • Measured line speed
+    • Measured air flow / pressure (to infer h)
+    • Optional: wire surface temperature via IR pyrometer
+    • Optional: solvent concentration in exhaust (indicates drying completeness)
+
+    From these, a Cure Estimator (your model + parameters) calculates a cure index estimate Ĉ.
+
+    That becomes the process variable in the outer loop.
+
+    3.2 Control loops (concept)
+
+    • Inner loops
+      • PID(s) holding each oven zone at its Tair,set using heater output.
+      • PID(s) holding air flow at setpoint using fan speed/damper.
+    • Outer loop
+      • Target Ctarget (from product spec).
+      • Compare Ctarget with Ĉ.
+      • Controller (PID or MPC) adjusts:
+        • line speed v and/or
+        • oven zone setpoints Tair,set and/or
+        • air-flow setpoints.
+    """
+)
+
 st.subheader("Governing Equations")
 st.latex(r"\rho_{eff} A c_{p,eff} v \frac{dT_w}{dz} = h P (T_{air} - T_w)")
 st.latex(r"K = \frac{h P}{\rho_{eff} A c_{p,eff} v}\;,\; L_\theta = \frac{1}{K} = \frac{\rho_{eff} A c_{p,eff} v}{h P}")
@@ -31,28 +239,19 @@ st.latex(r"C \approx k_0 e^{-E_a/(R \bar{T}_w)} \frac{L}{v}\quad (C \approx 1 \R
 st.caption("Temperatures are in kelvin inside the kinetics; inputs below accept °C and convert internally.")
 
 st.markdown(
-    "The controller sketch and solver follow the same flow described in the earlier LLM breakdown: "
-    "the moving-wire energy balance is solved to get the exponential temperature rise, the thermal "
-    "length scale \(L_\theta\) shapes the average temperature, and Arrhenius kinetics integrate "
-    "over residence time to form the cure index \(C\). Closed-loop control compares a target \(C\) "
-    "with the estimated \(\hat{C}\) from these equations and adjusts speed or setpoints."
+    r"The controller sketch and solver follow the same flow described in the earlier LLM breakdown: "
+    r"the moving-wire energy balance is solved to get the exponential temperature rise, the thermal "
+    r"length scale \(L_\theta\) shapes the average temperature, and Arrhenius kinetics integrate "
+    r"over residence time to form the cure index \(C\). Closed-loop control compares a target \(C\) "
+    r"with the estimated \(\hat{C}\) from these equations and adjusts speed or setpoints."
 )
 
 st.subheader("How these equations form the model")
 st.markdown(
     """
-    * **Heating (energy balance):** A moving wire segment gains heat by convection, yielding
-      the first-order ODE \(\rho_{eff} A c_{p,eff} v \tfrac{dT_w}{dz} = h P (T_{air}-T_w)\).
-      Solving it gives the exponential approach \(T_w(z)\) to the air temperature.
-    * **Thermal length scale:** Rearranging the solution exposes \(K\) and the thermal length
-      \(L_\theta = 1/K\), which quantify how quickly the wire equilibrates; they depend on
-      geometry (perimeter and area), line speed, and convection.
-    * **Average temperature:** Integrating \(T_w(z)\) over the heated length \(L\) produces
-      \(\bar{T}_w\), the effective temperature used in the cure integral.
-    * **Cure kinetics:** Arrhenius kinetics \(k(T) = k_0 e^{-E_a/(R T)}\) integrated over the
-      residence time \(L/v\) give the cure index \(C\). Meeting the target is expressed as
-      \(C \rightarrow C_{target}\), which you can achieve by solving for one manipulated
-      variable (speed, air temperature, or convection) while holding the others.
+    The above narrative walks through the exact ODE, thermal length scale, averaged temperature,
+    and Arrhenius kinetics that build the cure-index model. The calculators below directly use
+    those relationships.
     """
 )
 
@@ -81,6 +280,21 @@ perimeter = math.pi * d_overall
 
 mode = st.radio("Select mode", ["Open-loop (report cure index)", "Closed-loop (solve a setpoint)"])
 
+st.subheader("Optional measurements")
+use_pyro = st.checkbox("Use measured wire surface temperature (pyrometer)", value=False)
+pyro_temp_c = (
+    st.number_input("Measured wire surface temperature [°C]", value=180.0, min_value=-50.0)
+    if use_pyro
+    else None
+)
+use_solvent = st.checkbox("Use solvent concentration / evaporation completeness", value=False)
+solvent_residual_pct = (
+    st.number_input("Residual solvent indicator [% of baseline]", value=0.0, min_value=0.0, max_value=100.0)
+    if use_solvent
+    else 0.0
+)
+solvent_factor = max(0.0, 1.0 - solvent_residual_pct / 100.0)
+
 
 def average_wire_temp(T_air_c: float, v_mps: float, h_wm2k: float) -> tuple[float, float]:
     """Return average wire temperature in °C and thermal length L_theta [m]."""
@@ -92,72 +306,15 @@ def average_wire_temp(T_air_c: float, v_mps: float, h_wm2k: float) -> tuple[floa
     return T_bar, L_theta
 
 
-def cure_index(T_air_c: float, v_mps: float, h_wm2k: float) -> float:
-    T_bar_c, _ = average_wire_temp(T_air_c, v_mps, h_wm2k)
-    if math.isnan(T_bar_c):
-        return math.nan
-    T_bar_k = T_bar_c + 273.15
-    return float(k0 * math.exp(-Ea / (R_GAS * T_bar_k)) * (L_oven / v_mps))
-
-
-def control_loop_diagram() -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(14, 3))
-    ax.axis("off")
-
-    def box(x, y, w, h, text):
-        rect = patches.FancyBboxPatch(
-            (x, y),
-            w,
-            h,
-            boxstyle="round,pad=0.1",
-            linewidth=1.5,
-            edgecolor="#2c3e50",
-            facecolor="#ecf0f1",
-        )
-        ax.add_patch(rect)
-        ax.text(x + w / 2, y + h / 2, text, ha="center", va="center", fontsize=9)
-        return rect
-
-    box(0.1, 0.9, 1.8, 0.7, "Cure Index Setpoint\nC_target")
-    box(2.1, 0.95, 0.5, 0.6, "Σ")
-    box(3.0, 0.9, 2.2, 0.7, "Cure Controller\n(PID / MPC)")
-    box(5.6, 1.45, 2.0, 0.6, "Line speed setpoint\nv_set")
-    box(5.6, 0.25, 2.0, 0.6, "Airflow / thermal setpoints\nT_air,set, h_set")
-    box(8.0, 0.25, 2.4, 1.8, "Enameling Oven\n(T_air, h, L, v, d_w, t_e)")
-    box(10.8, 0.2, 2.6, 1.0, "Process measurements\n(T_air, v, h, pyrometer, exhaust)")
-    box(10.8, 1.3, 2.6, 0.7, "Cure Estimator\nC_hat = f(T_air, v, h, d_w, t_e)")
-
-    def arrow(start, end, label=None):
-        ax.annotate(
-            "",
-            xy=end,
-            xytext=start,
-            arrowprops=dict(arrowstyle="->", linewidth=1.4, color="#2c3e50"),
-        )
-        if label:
-            ax.text(
-                (start[0] + end[0]) / 2,
-                (start[1] + end[1]) / 2 + 0.1,
-                label,
-                fontsize=8,
-                ha="center",
-            )
-
-    arrow((1.9, 1.25), (2.1, 1.25))
-    arrow((2.6, 1.25), (3.0, 1.25))
-    arrow((5.2, 1.25), (5.6, 1.75), label="speed command")
-    arrow((5.2, 1.25), (5.6, 0.55), label="oven setpoints")
-    arrow((7.6, 1.75), (8.0, 1.75))
-    arrow((7.6, 0.55), (8.0, 0.55))
-    arrow((10.4, 1.65), (10.8, 1.65))
-    arrow((10.4, 0.7), (10.8, 0.7))
-    arrow((13.4, 1.65), (2.35, 1.55), label="feedback C_hat")
-    arrow((13.4, 0.7), (2.35, 1.0), label="measurements")
-
-    ax.set_xlim(0, 14)
-    ax.set_ylim(0, 2.5)
-    fig.tight_layout()
-    return fig
+def cure_index(T_air_c: float, v_mps: float, h_wm2k: float) -> tuple[float, float, float]:
+    """Return cure index plus effective average temperature and L_theta."""
+    T_bar_c_model, L_theta_val = average_wire_temp(T_air_c, v_mps, h_wm2k)
+    if math.isnan(T_bar_c_model):
+        return math.nan, math.nan, math.nan
+    T_eff_c = pyro_temp_c if use_pyro else T_bar_c_model
+    T_bar_k = T_eff_c + 273.15
+    cure = float(k0 * math.exp(-Ea / (R_GAS * T_bar_k)) * (L_oven / v_mps) * solvent_factor)
+    return cure, T_eff_c, L_theta_val
 
 
 class PIDController:
@@ -200,13 +357,12 @@ if "Open-loop" in mode:
     with col_inputs3:
         h_coeff = st.number_input("Convection coefficient h [W/m²-K]", value=75.0, min_value=0.1)
 
-    T_avg, L_theta_val = average_wire_temp(T_air, v_line, h_coeff)
-    C_value = cure_index(T_air, v_line, h_coeff)
+    C_value, T_eff, L_theta_val = cure_index(T_air, v_line, h_coeff)
 
     if not math.isnan(C_value):
         st.success(
-            f"Average wire temperature ≈ {T_avg:.1f} °C (L_theta ≈ {L_theta_val:.2f} m); "
-            f"cure index C ≈ {C_value:.3f}"
+            f"Effective wire temperature ≈ {T_eff:.1f} °C (L_theta ≈ {L_theta_val:.2f} m); "
+            f"cure index C ≈ {C_value:.3f}" + (" using pyrometer T" if use_pyro else "")
         )
     else:
         st.warning("Enter positive speed and convection to compute the cure index.")
@@ -221,17 +377,32 @@ else:
     h_guess = st.number_input("Convection guess h [W/m²-K]", value=75.0, min_value=0.1)
 
     def solve_for_variable(symbol: sp.Symbol, expr: sp.Expr, guess: float) -> float | None:
-        try:
-            sol = sp.nsolve(expr - C_target, guess, tol=1e-9, maxsteps=100)
-            return float(sol)
-        except Exception:
-            return None
+        guesses = []
+        if guess > 0:
+            guesses.extend([guess, max(guess * 0.5, 1e-6), guess * 2])
+        guesses.extend([guess + 0.5, max(0.1, guess - 0.5)])
+        tried = set()
+        for g in guesses:
+            if g in tried:
+                continue
+            tried.add(g)
+            try:
+                sol = sp.nsolve(expr - C_target, g, tol=1e-9, maxsteps=200, prec=50)
+                sol_val = float(sol)
+                if sol_val > 0:
+                    return sol_val
+            except Exception:
+                continue
+        return None
 
     if solve_choice == "Line speed v":
         v_sym = sp.symbols("v", positive=True)
         L_theta_expr = (rho_eff * A_cross * cp_eff * v_sym) / (h_guess * perimeter)
-        Tbar_expr = T_air_guess - (T_air_guess - T_in) * (L_theta_expr / L_oven) * (1 - sp.exp(-L_oven / L_theta_expr))
-        C_expr = k0 * sp.exp(-Ea / (R_GAS * (Tbar_expr + 273.15))) * (L_oven / v_sym)
+        if use_pyro:
+            Tbar_expr = pyro_temp_c
+        else:
+            Tbar_expr = T_air_guess - (T_air_guess - T_in) * (L_theta_expr / L_oven) * (1 - sp.exp(-L_oven / L_theta_expr))
+        C_expr = solvent_factor * k0 * sp.exp(-Ea / (R_GAS * (Tbar_expr + 273.15))) * (L_oven / v_sym)
         solved = solve_for_variable(v_sym, C_expr, v_guess)
         if solved:
             st.success(f"Required line speed v ≈ {solved:.4f} m/s to hit C_target")
@@ -240,8 +411,11 @@ else:
     elif solve_choice == "Air temperature T_air":
         T_sym = sp.symbols("Tair")
         L_theta_expr = (rho_eff * A_cross * cp_eff * v_guess) / (h_guess * perimeter)
-        Tbar_expr = T_sym - (T_sym - T_in) * (L_theta_expr / L_oven) * (1 - sp.exp(-L_oven / L_theta_expr))
-        C_expr = k0 * sp.exp(-Ea / (R_GAS * (Tbar_expr + 273.15))) * (L_oven / v_guess)
+        if use_pyro:
+            Tbar_expr = pyro_temp_c
+        else:
+            Tbar_expr = T_sym - (T_sym - T_in) * (L_theta_expr / L_oven) * (1 - sp.exp(-L_oven / L_theta_expr))
+        C_expr = solvent_factor * k0 * sp.exp(-Ea / (R_GAS * (Tbar_expr + 273.15))) * (L_oven / v_guess)
         solved = solve_for_variable(T_sym, C_expr, T_air_guess)
         if solved:
             st.success(f"Required air temperature T_air ≈ {solved:.1f} °C to hit C_target")
@@ -250,8 +424,11 @@ else:
     else:
         h_sym = sp.symbols("h", positive=True)
         L_theta_expr = (rho_eff * A_cross * cp_eff * v_guess) / (h_sym * perimeter)
-        Tbar_expr = T_air_guess - (T_air_guess - T_in) * (L_theta_expr / L_oven) * (1 - sp.exp(-L_oven / L_theta_expr))
-        C_expr = k0 * sp.exp(-Ea / (R_GAS * (Tbar_expr + 273.15))) * (L_oven / v_guess)
+        if use_pyro:
+            Tbar_expr = pyro_temp_c
+        else:
+            Tbar_expr = T_air_guess - (T_air_guess - T_in) * (L_theta_expr / L_oven) * (1 - sp.exp(-L_oven / L_theta_expr))
+        C_expr = solvent_factor * k0 * sp.exp(-Ea / (R_GAS * (Tbar_expr + 273.15))) * (L_oven / v_guess)
         solved = solve_for_variable(h_sym, C_expr, h_guess)
         if solved:
             st.success(f"Required convection coefficient h ≈ {solved:.1f} W/m²-K to hit C_target")
@@ -323,8 +500,8 @@ st.markdown(
 
 st.subheader("Closed-loop block diagram")
 st.caption("Illustrative flow mirroring the provided cure-control schematic.")
-diagram_fig = control_loop_diagram()
-buf = BytesIO()
-diagram_fig.savefig(buf, format="png", dpi=200, bbox_inches="tight")
-buf.seek(0)
-st.image(buf, use_column_width=True)
+diagram_path = Path("data/system_diagram.png")
+if diagram_path.exists():
+    st.image(str(diagram_path), caption="Closed-loop cure control schematic", use_container_width=True)
+else:
+    st.warning("system_diagram.png not found in data/. Add the provided diagram to display it here.")

@@ -35,4 +35,4 @@ and embedded research PDFs.
 - **Standards & Research**: NEMA/IEC magnet-wire standards highlights, Elektrisola technical tables, and embedded/linked research PDFs plus slide decks.
 - **Thermal Aging Methods**: digitized Figure 2–5 curves (thermogravimetry, dielectric loss, DMA, capacitance drift) with logistic/polynomial fits, hover readouts, and fit coefficients.
 - **Magnetic Microwires**: LaTeX equations with Sympy solvers, digitized Figures 4/6/7 overlays with Chebyshev fits, hoverable coefficients, and stress/frequency subplot groupings.
-- **Cure Control Model**: energy-balance/Arrhenius derivation, open-loop cure-index reporting, closed-loop solvers for speed/temperature/convection, PID helper from the Digi-Key tutorial, and a control-loop block diagram.
+- **Cure Control Model**: energy-balance/Arrhenius derivation (with LLM walk-through), optional pyrometer/solvent toggles in open- and closed-loop solvers for speed/temperature/convection, PID helper from the Digi-Key tutorial, and the uploaded control-loop block diagram (data/system_diagram.png) rendered inline.
