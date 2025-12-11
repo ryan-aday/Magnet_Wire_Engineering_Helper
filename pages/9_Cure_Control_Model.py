@@ -4,8 +4,6 @@ from pathlib import Path
 import sympy as sp
 import streamlit as st
 
-R_GAS = 8.314  # J/mol-K
-
 st.title("Cure Control Model: Open vs. Closed Loop")
 
 st.markdown(
@@ -163,6 +161,31 @@ st.markdown(
     """
 )
 
+st.info(
+    r"""
+    Gas constant \(R\) defaults to the universal 8.314 J/mol·K. The Arrhenius pair defaults to
+    \(k_0 = 3.0\times10^4\,\text{s}^{-1}\) and \(E_a = 90\,\text{kJ/mol}\), tuned so the default
+    inputs (380 °C air, 0.05 m/s line speed, 30 m heated length, ≈1 mm wire, \(h\) ≈ 500 W/m²·K)
+    produce \(C \approx 1\). Edit all three to match your enamel data; the 380 °C default sits
+    inside the ≈550 °F (288 °C) bake guidance noted by lpenamelwire while still demonstrating the model.
+    """
+)
+
+st.markdown(
+    r"""
+    **How to identify \(k_0\) and \(E_a\) in practice**
+
+    1. **Supplier kinetics or cure-time charts:** use “equivalent cure” points (e.g., 5 min @ 420 °C,
+       10 min @ 400 °C) to fit an Arrhenius line: plot \(\ln t\) vs. \(1/T\); slope → \(E_a/R\),
+       intercept → \(-\ln k_0 + \ln C_{target}\).
+    2. **In-house cure or DSC tests:** measure time-to-cure at multiple temperatures (gel fraction,
+       exotherm, modulus) and fit the same \(\ln t\) vs. \(1/T\) line to extract \(E_a\) and \(k_0\).
+    3. **Control-oriented shortcut:** pick one proven oven condition \((T_{ref}, v_{ref})\) that yields
+       acceptable cure, assume \(\bar{T}_w \approx T_{ref}\), and back-solve \(k_0\) for \(C \approx 1\)
+       using your chosen \(E_a\); then refine both parameters against two or more additional test points.
+    """
+)
+
 st.divider()
 
 st.subheader("Wire & Oven Inputs")
@@ -176,7 +199,8 @@ with col_geom2:
     cp_eff = st.number_input("Effective specific heat c_p,eff [J/kg-K]", value=385.0, min_value=10.0)
     T_in = st.number_input("Wire entry T_in [°C]", value=50.0)
 with col_geom3:
-    k0 = st.number_input("Pre-exponential factor k0 [1/s]", value=1.0, min_value=0.0001, format="%f")
+    R_gas = st.number_input("Gas constant R [J/mol-K]", value=8.314, min_value=1.0, format="%f")
+    k0 = st.number_input("Pre-exponential factor k0 [1/s]", value=30_000.0, min_value=0.0001, format="%f")
     Ea = st.number_input("Activation energy E_a [J/mol]", value=90000.0, min_value=1000.0)
     C_target = st.number_input("Target cure index C_target", value=1.0, min_value=0.1, max_value=5.0, step=0.1)
 
@@ -189,9 +213,9 @@ perimeter = math.pi * d_overall
 mode = st.radio("Select mode", ["Open-loop (report cure index)", "Closed-loop (solve a setpoint)"])
 
 # Defaults that downstream sections can re-use for the PID simulation
-current_T_air = 420.0
-current_v = 1.0
-current_h = 75.0
+current_T_air = 380.0
+current_v = 0.05
+current_h = 500.0
 
 st.subheader("Optional measurements")
 use_pyro = st.checkbox("Use measured wire surface temperature (pyrometer)", value=False)
@@ -227,7 +251,7 @@ def cure_index(T_air_c: float, v_mps: float, h_wm2k: float) -> tuple[float, floa
         return math.nan, math.nan, math.nan
     T_eff_c = pyro_temp_c if use_pyro else T_bar_c_model
     T_bar_k = T_eff_c + 273.15
-    cure = float(k0 * math.exp(-Ea / (R_GAS * T_bar_k)) * (L_oven / v_mps) * solvent_factor)
+    cure = float(k0 * math.exp(-Ea / (R_gas * T_bar_k)) * (L_oven / v_mps) * solvent_factor)
     return cure, T_eff_c, L_theta_val
 
 
@@ -265,11 +289,11 @@ class PIDController:
 if "Open-loop" in mode:
     col_inputs1, col_inputs2, col_inputs3 = st.columns(3)
     with col_inputs1:
-        T_air = st.number_input("Zone air temperature T_air [°C]", value=420.0)
+        T_air = st.number_input("Zone air temperature T_air [°C]", value=380.0)
     with col_inputs2:
-        v_line = st.number_input("Line speed v [m/s]", value=1.0, min_value=0.001, format="%f")
+        v_line = st.number_input("Line speed v [m/s]", value=0.05, min_value=0.00001, format="%f")
     with col_inputs3:
-        h_coeff = st.number_input("Convection coefficient h [W/m²-K]", value=75.0, min_value=0.1)
+        h_coeff = st.number_input("Convection coefficient h [W/m²-K]", value=500.0, min_value=0.1)
 
     C_value, T_eff, L_theta_val = cure_index(T_air, v_line, h_coeff)
     current_T_air, current_v, current_h = T_air, v_line, h_coeff
@@ -288,9 +312,9 @@ else:
     solve_choice = st.selectbox("Solve for", ["Line speed v", "Air temperature T_air", "Convection coefficient h"])
 
     # Shared knowns
-    T_air_guess = st.number_input("Air temperature guess T_air [°C]", value=420.0)
-    v_guess = st.number_input("Line speed guess v [m/s]", value=1.0, min_value=0.001, format="%f")
-    h_guess = st.number_input("Convection guess h [W/m²-K]", value=75.0, min_value=0.1)
+    T_air_guess = st.number_input("Air temperature guess T_air [°C]", value=380.0)
+    v_guess = st.number_input("Line speed guess v [m/s]", value=0.05, min_value=0.00001, format="%f")
+    h_guess = st.number_input("Convection guess h [W/m²-K]", value=500.0, min_value=0.1)
     current_T_air, current_v, current_h = T_air_guess, v_guess, h_guess
 
     def solve_for_variable(symbol: sp.Symbol, expr: sp.Expr, guess: float) -> float | None:
@@ -332,7 +356,7 @@ else:
             Tbar_expr = pyro_temp_c
         else:
             Tbar_expr = T_air_guess - (T_air_guess - T_in) * (L_theta_expr / L_oven) * (1 - sp.exp(-L_oven / L_theta_expr))
-        C_expr = solvent_factor * k0 * sp.exp(-Ea / (R_GAS * (Tbar_expr + 273.15))) * (L_oven / v_sym)
+        C_expr = solvent_factor * k0 * sp.exp(-Ea / (R_gas * (Tbar_expr + 273.15))) * (L_oven / v_sym)
         solved = solve_for_variable(v_sym, C_expr, v_guess)
         if solved:
             st.success(f"Required line speed v ≈ {solved:.4f} m/s to hit C_target")
@@ -346,7 +370,7 @@ else:
             Tbar_expr = pyro_temp_c
         else:
             Tbar_expr = T_sym - (T_sym - T_in) * (L_theta_expr / L_oven) * (1 - sp.exp(-L_oven / L_theta_expr))
-        C_expr = solvent_factor * k0 * sp.exp(-Ea / (R_GAS * (Tbar_expr + 273.15))) * (L_oven / v_guess)
+        C_expr = solvent_factor * k0 * sp.exp(-Ea / (R_gas * (Tbar_expr + 273.15))) * (L_oven / v_guess)
         solved = solve_for_variable(T_sym, C_expr, T_air_guess)
         if solved:
             st.success(f"Required air temperature T_air ≈ {solved:.1f} °C to hit C_target")
@@ -360,7 +384,7 @@ else:
             Tbar_expr = pyro_temp_c
         else:
             Tbar_expr = T_air_guess - (T_air_guess - T_in) * (L_theta_expr / L_oven) * (1 - sp.exp(-L_oven / L_theta_expr))
-        C_expr = solvent_factor * k0 * sp.exp(-Ea / (R_GAS * (Tbar_expr + 273.15))) * (L_oven / v_guess)
+        C_expr = solvent_factor * k0 * sp.exp(-Ea / (R_gas * (Tbar_expr + 273.15))) * (L_oven / v_guess)
         solved = solve_for_variable(h_sym, C_expr, h_guess)
         if solved:
             st.success(f"Required convection coefficient h ≈ {solved:.1f} W/m²-K to hit C_target")
@@ -431,7 +455,7 @@ with sim_col2:
     control_choice = st.selectbox("Control variable", ["Line speed v", "Air temperature T_air", "Convection h"])
     control_gain = st.number_input("Actuator gain (units per PID unit)", value=0.1, format="%f")
 with sim_col3:
-    v_min = st.number_input("Min line speed [m/s]", value=0.05, min_value=0.0001, format="%f")
+    v_min = st.number_input("Min line speed [m/s]", value=0.05, min_value=0.00001, format="%f")
     h_min = st.number_input("Min h [W/m²-K]", value=1.0, min_value=0.001, format="%f")
 with sim_col4:
     T_min = st.number_input("Min T_air [°C]", value=25.0)
@@ -473,22 +497,6 @@ if sim_records:
     st.caption(
         "Control trace shows the manipulated variable evolution; cure index is driven toward the target (default 1.0)."
     )
-
-st.divider()
-
-st.subheader("Control Loop Concept")
-st.markdown(
-    """
-    **Open loop**: pick zone setpoints and line speed, compute the resulting cure index (C). Use
-    this as a quick advisory tool during trials.
-
-    **Closed loop**: feed temperature, line-speed, and airflow measurements into a cure estimator
-    (the equations above) and adjust either line speed or setpoints to keep **C → C_target** despite
-    disturbances (ambient swings, enamel solids, diameter changes). A typical architecture couples
-    inner PID loops on zone temperature/airflow with an outer loop on cure index that nudges speed
-    or temperature setpoints.
-    """
-)
 
 st.subheader("Closed-loop block diagram")
 st.caption("Illustrative flow mirroring the provided cure-control schematic.")
