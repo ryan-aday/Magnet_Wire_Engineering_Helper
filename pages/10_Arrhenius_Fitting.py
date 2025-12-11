@@ -32,9 +32,9 @@ st.markdown(
 Use your own cure-time measurements to extract activation energy and the pre-exponential
 factor by fitting the linearized Arrhenius form:
 
-\[ \ln t = \frac{E_a}{R} \frac{1}{T} - \ln k_0 + \ln C_{\text{target}} \]
+$$ \ln t = \frac{E_a}{R} \frac{1}{T} - \ln k_0 + \ln C_{\text{target}} $$
 
-* Slope → \(E_a / R\); intercept → \(-\ln k_0 + \ln C_{\text{target}}\)
+* Slope → $E_a / R$; intercept → $-\ln k_0 + \ln C_{\text{target}}$
 * Enter at least five points (temperature in °C, time in seconds) to solve.
     """
 )
